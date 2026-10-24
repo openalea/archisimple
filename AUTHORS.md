@@ -2,7 +2,7 @@
 
 ## Development Lead
 
-* Tristan Gérault <tristan.gerault@inrae.fr>
+* Tristan Gérault <tristan.gerault@uclouvain.be>
 
 ## Contributors
 
