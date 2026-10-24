@@ -1,0 +1,17 @@
+name: archisimple
+channels:
+  - openalea3
+  - conda-forge
+dependencies:
+  - python
+  - openalea.metafspm
+  - openalea.mtg
+  - openalea.plantgl
+  - numpy
+  - pandas
+  - matplotlib
+  - pip
+  - pytest
+  # let pip install the rest using pyproject.toml (if you are okay with conda/pip mix)
+  - pip:
+      - -e .."[doc]"

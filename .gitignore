@@ -1,0 +1,34 @@
+# Output files
+outputs
+/outputs
+example/**/outputs/
+
+# Python files
+*.py[cod]
+__pycache__
+
+# Packages
+*.egg
+*.egg-info
+dist
+build
+sdist
+
+# Unit test / coverage reports
+.coverage
+.pytest_cache
+
+# Editors
+.idea
+.vscode
+*.code-workspace
+*.swp
+.DS_Store
+
+# Notebooks' checkpoints
+.ipynb_checkpoints
+
+CLAUDE.md
+*/CLAUDE.md
+
+/dev*.md

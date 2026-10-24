@@ -1,0 +1,44 @@
+cff-version: 1.2.0
+title: ArchiSimple
+message: >-
+  If you use this software, please cite the model's article (Pagès et al., 2014) and this implementation.
+type: software
+authors:
+  - given-names: Tristan
+    family-names: Gérault
+    affiliation: INRAE
+    email: tristan.gerault@inrae.fr
+  - given-names: Christophe
+    family-names: Pradal
+    affiliation: CIRAD / inria
+    orcid: 'https://orcid.org/0000-0002-2555-761X'
+repository-code: 'https://github.com/openalea/archisimple'
+abstract: >-
+  ArchiSimple, a parsimonious model of root system architecture, as a metafspm StructuralComponent in OpenAlea.
+keywords:
+  - openalea
+  - FSPM
+  - root system architecture
+  - ArchiSimple
+license: CECILL-C
+references:
+  - type: article
+    title: 'Calibration and evaluation of ArchiSimple, a simple model of root system architecture'
+    authors:
+      - family-names: Pagès
+        given-names: Loïc
+      - family-names: Bécel
+        given-names: Charlotte
+      - family-names: Boukcim
+        given-names: Hassan
+      - family-names: Moreau
+        given-names: Delphine
+      - family-names: Nguyen
+        given-names: Christophe
+      - family-names: Voisin
+        given-names: Anne-Sophie
+    journal: Ecological Modelling
+    volume: 290
+    start: 76
+    end: 84
+    year: 2014

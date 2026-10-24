@@ -1,0 +1,97 @@
+[build-system]
+requires = [
+    "setuptools",
+    "setuptools_scm",
+]
+build-backend = "setuptools.build_meta"
+
+# where your source lies if you followed src layout
+[tool.setuptools.packages.find]
+where = ["src"]
+
+[tool.setuptools]
+include-package-data = false # force explicit declaration of data (disable automatic inclusion)
+
+# enable dynamic version based on git tags
+[tool.setuptools_scm]
+
+[project]
+name = "openalea.archisimple"
+authors = [
+  { name = "Tristan Gérault", email = "tristan.gerault@inrae.fr" },
+  { name = "Christophe Pradal", email = "christophe.pradal@cirad.fr" }
+]
+description = "ArchiSimple, a parsimonious root system architecture model (Pagès et al., 2014), as a metafspm StructuralComponent for OpenAlea"
+readme = "README.md"
+license = "CECILL-C"
+license-files = ["LICEN[CS]E*"]
+requires-python = ">=3.8"
+dynamic = ["version"]
+classifiers = [
+  "Development Status :: 3 - Alpha",
+  "Intended Audience :: Science/Research",
+  "Intended Audience :: Developers",
+  #"License :: OSI Approved :: CeCILL-C License",
+  "Operating System :: OS Independent",
+  "Programming Language :: Python",
+  "Programming Language :: Python :: 3",
+  "Programming Language :: Python :: 3 :: Only",
+  "Programming Language :: Python :: 3.10",
+  "Programming Language :: Python :: 3.11",
+  "Programming Language :: Python :: 3.12",
+  "Programming Language :: Python :: 3.13",
+  "Topic :: Scientific/Engineering",
+  "Framework :: OpenAlea",
+]
+
+# you can list here all dependencies that are pip-instalable, and that have a name identical to the one used by conda (to allow reuse of this list in meta.yaml)
+# If conda name is different, please do not declare the pip name, and declare conda name in the next section
+dependencies = []
+
+# section specific to conda-only distributed package (not used by pip yet)
+[tool.conda.environment]
+
+dependencies = [
+    "openalea.metafspm",
+    "openalea.mtg",
+    "openalea.plantgl",
+    "numpy",
+    "pandas",
+    "matplotlib",
+]
+
+[project.optional-dependencies]
+test = [
+  "pytest",
+  "nbmake",
+]
+dev = [
+  "pytest >=6",
+  "pytest-cov >=3",
+]
+doc = [
+  "pydata-sphinx-theme",
+  "myst-parser",
+  "sphinx-favicon",
+  "ipykernel",
+  "sphinx-copybutton",
+  "ipython_genutils",
+  "nbsphinx",
+]
+
+[project.urls]
+Repository = "https://github.com/openalea/archisimple"
+Homepage = "https://archisimple.readthedocs.io/"
+"Bug Tracker" = "https://github.com/openalea/archisimple/issues"
+
+[tool.coverage.run]
+source = ["openalea.archisimple"]
+branch = true
+
+[tool.coverage.report]
+show_missing = true
+skip_covered = true
+
+[tool.pytest.ini_options]
+testpaths = ["test"]
+pythonpath = ["test"]
