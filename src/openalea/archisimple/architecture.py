@@ -3,8 +3,7 @@ ArchiSimple (Pagès et al., 2014), the root system architecture, as a metafspm S
 development of the root system (its apices' potential growth, durations and emergences, the pipe model, segmentation
 and lateral primordia, deaths), its growth the potential one times a satisfaction coefficient. RhizoDep's RootGrowth
 (openalea.rhizodep.growth) specialises it, its growth limited by resources, with root hairs. Ported from RhizoDep's
-root growth (its original RootGrowthModel). "devplan §N": the sections of rhizodep's devplan_metafspm.md, where the
-port's choices are recorded.
+root growth (its original RootGrowthModel).
 
 RhizoDep's extensions of ArchiSimple, kept as options: nodules (`nodules`), the emergence of seminal and nodal roots
 from tables of events (`input_file_path`, `*_roots_events_file`), the temperature's effect on development.
@@ -15,7 +14,7 @@ from tables of events (`input_file_path`, `*_roots_events_file`), the temperatur
 with MyModel.initiators = (RootArchitecture,): each plant's seedling is built by initiate_plant, its
 parameters the class defaults overridden by the plant's scenario.
 
-The plant's structure, in the MPG (devplan §10, Q-R4, §32.5):
+The plant's structure, in the MPG:
 
     Plant
      ├─ Axis (RootAxis)  the primary root        GrowthUnit ─ Phytomer ─ Organ (RootInternode), its `<` chain of
@@ -25,7 +24,7 @@ The plant's structure, in the MPG (devplan §10, Q-R4, §32.5):
 
 A lateral root is an Organ of its bearer's Axis, its first SubOrgan branched (+) on its bearer's segment. Every
 element is a SubOrgan (a RootSegment, or a RootApex for an axis' tip), carrying the variables below; elements are
-identified by their MPG ids. Their random draws are keyed by their lineage `key` (devplan §32.3): a pure function of
+identified by their MPG ids. Their random draws are keyed by their lineage `key`: a pure function of
 their place in their plant, so independent of the visiting order and of the other plants of a population.
 
 Codes: `type` (TYPE_*), `lateral_root_emergence_possibility` (EMERGENCE_*), `axis_type` (AXIS_*), integers.
@@ -75,14 +74,14 @@ EDGES = {"<": 0, "+": 1}
 
 
 def seed_keys(random_choice) -> np.ndarray:
-    """The lineage key of a plant's first element (its base), from the plant's random_choice (devplan §32.3)."""
+    """The lineage key of a plant's first element (its base), from the plant's random_choice."""
     return (random_streams.bits(np.asarray(random_choice, dtype=np.int64).reshape(-1), stream="seed")
             >> np.uint64(12)).astype(np.int64)
 
 
 def child_keys(parent_keys, edge, rank=0) -> np.ndarray:
     """The lineage keys of new elements, from their parent's key, their edge to it and their rank among the parent's
-    children of that edge created at once: a pure function of the element's place in its plant (devplan §32.3).
+    children of that edge created at once: a pure function of the element's place in its plant.
     52 bits, so that a key is exact in a float array."""
     return (random_streams.bits(np.asarray(parent_keys, dtype=np.int64).reshape(-1), stream="lineage",
                                 step=EDGES[edge], draw=rank) >> np.uint64(12)).astype(np.int64)
@@ -136,7 +135,7 @@ class RootArchitecture(StructuralComponent):
     The root architecture of rhizodep, C-free (ArchiSimple; Pagès et al., 2014): the apices' development (their
     elongation from their diameter, growth durations, emergences, stops and deaths), the pipe model, segmentation
     and lateral primordia; growth is the potential growth times the plant's satisfaction coefficient. RootGrowth
-    adds the limitation by resources (devplan §23).
+    adds the limitation by resources.
     """
     # --- Inputs ---
     soil_temperature: float = input_variable(**doc('°C', 'soil temperature in contact with roots'),
@@ -153,7 +152,7 @@ class RootArchitecture(StructuralComponent):
                                            'provided as input'),
                                      state_variable_type=DESCRIPTOR, initialize=1, scale=SubOrgan, dtype='int')
     key: int = state_variable(**doc('dimensionless', "The element's lineage key, its random draws' identity: from its "
-                                                     "parent's, its edge and its rank (devplan §32.3)",
+                                                     "parent's, its edge and its rank",
                                     value_comment='-1 as default when not assigned'),
                               state_variable_type=DESCRIPTOR, initialize=-1, scale=SubOrgan, dtype='int')
     axis_apex_id: int = state_variable(**doc('dimensionless',
@@ -237,7 +236,7 @@ class RootArchitecture(StructuralComponent):
                                        state_variable_type=NII, initialize=0.0, scale=SubOrgan)
     azimuth: float = state_variable(**doc('°', "Roll of the parent's frame around its direction before the element's "
                                                "pitch (angle_down): the direction a root leaves the base in (the "
-                                               "legacy's support's roll, devplan §32.5)"),
+                                               "legacy's support's roll)"),
                                     state_variable_type=DESCRIPTOR, initialize=0.0, scale=SubOrgan)
     dist_to_ramif: float = state_variable(**doc('m', 'Length elongated by the apex since its last lateral primordium'),
                                           state_variable_type=NII, initialize=0.0, scale=SubOrgan)
@@ -293,7 +292,7 @@ class RootArchitecture(StructuralComponent):
 
     life_duration_diameter_exponent: float = parameter(
         **doc('adim', "The exponent of the diameter in the life duration LDs·d^e·density: 1, RhizoDep's (its legacy "
-                      "and main branch); 2, ArchiSimple's (Pagès et al. 2014, Eq. 3, LDs then recalibrated) (g21)"),
+                      "and main branch); 2, ArchiSimple's (Pagès et al. 2014, Eq. 3, LDs then recalibrated)"),
         by=BY, default=1.)
 
     # --- Plant-scale state ---
@@ -427,7 +426,7 @@ class RootArchitecture(StructuralComponent):
                                          by=BY, default=2)
 
     # Coupled, the other components' variables are shared between the elements once per call, as RhizoDep's
-    # post_growth_updating does it, but conservatively (metafspm's repartition; devplan §19, g17): by the living
+    # post_growth_updating does it, but conservatively (metafspm's repartition): by the living
     # structural mass after the call, against the living mass at its start (partition_basis None). For an element
     # that only elongated it is RhizoDep's basis (its initial masses); for one segmentation split, RhizoDep's
     # initial_struct_mass is already shared out, which would lose amounts
@@ -446,7 +445,7 @@ class RootArchitecture(StructuralComponent):
            "thermal_potential_time_since_emergence", "thermal_time_since_growth_stopped", "thermal_time_since_death")
 
 
-    # The resources of growth (RootGrowth's, devplan §21): none, the architecture is C-free
+    # The resources of growth (RootGrowth's): none, the architecture is C-free
     resources = ()
     # ArchiSimple's development: elongation and thickening not limited by resources, emergence at once (RootGrowth's
     # is limited by its resources), durations from the square diameter, GDs·d² (RootGrowth's: its
@@ -508,7 +507,7 @@ class RootArchitecture(StructuralComponent):
             volume=parameters["volume"], struct_mass=initial_mass, initial_struct_mass=initial_mass, key=base_key,
             **main_root_durations(base_radius)))
 
-        # The seminal, then the nodal (adventitious) roots, branched on the base: each its own draws (g15)
+        # The seminal, then the nodal (adventitious) roots, branched on the base: each its own draws
         rank = 0
         for kind in ("seminal", "adventitious"):
             number_of_roots = parameters[f"n_{kind}_roots"]
@@ -552,14 +551,14 @@ class RootArchitecture(StructuralComponent):
             original_radius=radius, potential_length=0., theoretical_radius=radius, potential_radius=radius,
             initial_length=0., initial_radius=radius, volume=0., struct_mass=0., initial_struct_mass=0.,
             **{resource.concentration: 0. for resource in cls.resources},
-            soil_temperature=7.8, root_tissue_density=tissue_density,                                   # g3
+            soil_temperature=7.8, root_tissue_density=tissue_density,
             growth_duration=parameters["GDs"] * (2 * radius) ** 2,
             life_duration=parameters["LDs"] * cls._diameter_term(radius, parameters) * tissue_density,
             temperature_modification=0.)}
 
     @staticmethod
     def _diameter_term(radius, parameters):
-        """d^e of the life duration (e: life_duration_diameter_exponent, g21); d itself for e = 1."""
+        """d^e of the life duration (e: life_duration_diameter_exponent); d itself for e = 1."""
         exponent = parameters["life_duration_diameter_exponent"]
         term = np.where(exponent == 1, 2. * radius, (2. * radius) ** exponent)
         return term if np.ndim(term) else float(term)
@@ -677,13 +676,13 @@ class RootArchitecture(StructuralComponent):
         return {resource.concentration: np.array(ds.get(getattr(resource, role)), dtype=float)
                 for resource in self.resources}
 
-    # ── Hooks (devplan §21): RhizoDep's by default; a subclass overrides them, e.g. for nitrogen ──────────────
+    # ── Hooks: RhizoDep's by default; a subclass overrides them, e.g. for nitrogen ──────────────
     #
     # Each takes arrays (on every element, or on the selected ones) and returns arrays; the parameters it needs are
     # read with self._parameter. A hook may also write variables its subclass declares (self.data_structure.set).
 
     def _actual_time(self, thermal_time, temperature_factor):
-        """The actual time of a thermal time: divided by the temperature factor; 0 when it is 0 (g6)."""
+        """The actual time of a thermal time: divided by the temperature factor; 0 when it is 0."""
         return np.where(temperature_factor > 0., thermal_time / np.where(temperature_factor > 0., temperature_factor,
                                                                          1.), 0.)
 
@@ -713,7 +712,7 @@ class RootArchitecture(StructuralComponent):
         shoot model may synchronise the nodal roots' emergence with its phytomers)."""
         return thermal_time_since_primordium_formation, emergence_delay_in_thermal_time
 
-    # ── Potential growth (RootGrowthModel.potential_growth; devplan §14) ───────────────────────────────────────
+    # ── Potential growth (RootGrowthModel.potential_growth) ───────────────────────────────────────
 
     @potential
     def _initial_length(self, length, radius, struct_mass, soil_temperature, process_at_T_ref, T_ref, A, B,
@@ -976,7 +975,7 @@ class RootArchitecture(StructuralComponent):
         """
         ArchiSimple's growth (RhizoDep's ArchiSimple_growth): each element grows by its potential increments times
         the plant's satisfaction coefficient SC (struct_mass_input over the potential growth's demand in structural
-        mass, between 0 and 1; satisfaction_coefficient). Completed as RhizoDep's actual growth (devplan §23, D-P7a):
+        mass, between 0 and 1; satisfaction_coefficient). Completed as RhizoDep's actual growth:
         the apices that could elongate are segmented, the primordia that elongate emerge.
         """
         ds = self.data_structure
@@ -1005,7 +1004,7 @@ class RootArchitecture(StructuralComponent):
         apices = grows & self._apex()
         new_dist_to_ramif[apices] += elongation[apices]
 
-        # Completed (D-P7a): the apices that could elongate segment, the primordia that elongate emerge
+        # Completed: the apices that could elongate segment, the primordia that elongate emerge
         elongating = grows & (potential_length > initial_length)
         new_type = np.array(type)
         time_since_emergence = np.array(thermal_time_since_emergence)
@@ -1041,10 +1040,10 @@ class RootArchitecture(StructuralComponent):
 
     # ── Segmentation and primordia (RootGrowthModel.segmentation_and_primordia_formation) ─────────────────────
     #
-    # One array-style step (devplan §32.4): the apices that elongated in actual growth are cut into segments of
+    # One array-style step: the apices that elongated in actual growth are cut into segments of
     # segment_length and a new apex; lateral primordia form on the apices and the new segments, nodules on the last
     # segments. All of a step's new elements are one NewNodes batch, created by metafspm in bulk. The draws are keyed
-    # by the elements' lineage keys (devplan §32.3): they depend neither on the visiting order nor on the other plants.
+    # by the elements' lineage keys: they depend neither on the visiting order nor on the other plants.
 
     # What a new element copies from its mother (RootGrowthModel.ADDING_A_CHILD(identical_properties=True)), besides
     # the radius (its radius, original and initial radius)
@@ -1085,8 +1084,8 @@ class RootArchitecture(StructuralComponent):
           share of the apex's amounts by its mass, its distance to the last branching, and the mean age of its cells
           (the elongated part's, the elongation spread at a constant rate);
         - a lateral primordium forms on the apex (or on its first segment) and on each new segment and apex without a
-          child, when its distance to the last branching exceeds IPD and its drawn diameter reaches Dmin (g19); the
-          position is used either way (g20); its radius RMD · (r - Dmin/2) + Dmin/2, drawn (CVDD), at most its
+          child, when its distance to the last branching exceeds IPD and its drawn diameter reaches Dmin; the
+          position is used either way; its radius RMD · (r - Dmin/2) + Dmin/2, drawn (CVDD), at most its
           bearer's; its growth duration by the rule;
         - a nodule on the last segment, by its probability (nodules on).
 
@@ -1229,12 +1228,12 @@ class RootArchitecture(StructuralComponent):
             primordium_angle_roll = np.full(site_keys.size, 5.)
         primordium_radius = np.minimum(primordium_radius, radius_site)
         beyond = possible & (site_distance > IPD)
-        forms = beyond & (2. * primordium_radius >= Dmin)                                         # g19
+        forms = beyond & (2. * primordium_radius >= Dmin)
         with np.errstate(divide="ignore", invalid="ignore"):
             rate_site = rate[site_apex]
             time_since_formation = np.where((site_elongation > 0.) & (rate_site > 0.),
                                             (site_distance - IPD) / rate_site, 0.)
-        site_distance = np.where(beyond, site_distance - IPD, site_distance)                      # used (g20)
+        site_distance = np.where(beyond, site_distance - IPD, site_distance)        # used either way
         new_dist_to_ramif[apices] = site_distance[:apices.size]
         chain["dist_to_ramif"] = site_distance[apices.size:]
         old = forms[:apices.size]
@@ -1247,8 +1246,8 @@ class RootArchitecture(StructuralComponent):
         plant = {name: values[at[f]] for name, values in p.items()}
         primordia = self._nil_values(plant, TYPE_BEFORE_EMERGENCE, order[f] + 1, primordium_angle_down[f],
                                      primordium_angle_roll[f], 0., primordium_radius[f])
-        primordia["soil_temperature"] = soil_temperature[at[f]]                                   # its mother's (g3)
-        if self.growth_duration_rule == "simple":                   # determinate laterals, no extender (g18)
+        primordia["soil_temperature"] = soil_temperature[at[f]]                                   # its mother's
+        if self.growth_duration_rule == "simple":                   # determinate laterals, no extender
             primordia["growth_duration"] = (plant["GDs"] * (2. * primordium_radius[f]) ** 2
                                             * self.lateral_growth_duration_factor(bearer[f]))
         else:                                                       # a subclass's rule (RootGrowth's)
@@ -1334,7 +1333,7 @@ class RootArchitecture(StructuralComponent):
 
     @postsegmentation
     def _living_struct_mass(self, struct_mass, type) -> outputs(1):
-        """The living structural mass (none for a dead element, g22), and the plant's total."""
+        """The living structural mass (none for a dead element), and the plant's total."""
         ds = self.data_structure
         living = np.array(struct_mass)
         living = np.where(np.isin(type, (TYPE_DEAD, TYPE_JUST_DEAD)), 0., living)
