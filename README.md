@@ -29,3 +29,18 @@ mamba activate archisimple
 pip install -e metafspm
 pip install -e archisimple
 ```
+
+## Usage
+
+```python
+from openalea.archisimple.parameter_sets import MAIZE
+from openalea.archisimple.run import run
+from openalea.archisimple.drawing import draw_root_system, totals
+
+result = run(MAIZE, n_steps=24 * 10)          # 10 days, hourly: RootArchitecture alone
+print(totals(result.steps[-1]))
+```
+
+Tutorial: [ArchiSimple in metafspm](example/tutorials/tutorial_archisimple.ipynb). Examples: `example/species.py`,
+`example/profile_population.py`. Tests: `pytest test` (the ensembles in `test/reference` are the statistical reference
+of the architecture).

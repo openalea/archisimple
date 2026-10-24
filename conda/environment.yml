@@ -5,7 +5,6 @@ channels:
 dependencies:
   - python
   - openalea.metafspm
-  - openalea.mtg
   - openalea.plantgl
   - numpy
   - pandas
