@@ -5,7 +5,7 @@ channels:
 dependencies:
   - python
   - openalea.metafspm
-  - openalea.plantgl
+  - openalea.plantgl              # the tests' reference (the former drawing by PlantGL's turtle)
   - numpy
   - pandas
   - matplotlib

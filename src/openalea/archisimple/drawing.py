@@ -6,13 +6,15 @@ legacy), to look at them and compare them.
     draw_root_system(ax, snapshot, color_by="type")
     totals(snapshot)                         {"length": ..., "struct_mass": ..., "apices": ..., "lateral_apices": ...}
 
-The geometry is rhizodep's (tools.plot_mtg and get_root_visitor), drawn by PlantGL's turtle: from the plant's
-position, pointing down, each element turns down by angle_down then rolls by angle_roll (a root leaving the base first
-rolls by its azimuth), bends towards the vertical by its gravitropism (gravitropism · its original radius over the
-base's, Wheat-BRIDGES' 0.06 by default), and goes `length` forward. With gravitropism 0 (or without PlantGL), the same
-turtle without tropism.
+The geometry is rhizodep's (tools.plot_mtg and get_root_visitor), PlantGL's turtle reproduced without PlantGL
+(metafspm's follow_parents, as RootArchitecture's _placement step): from the plant's position, pointing down, each
+element turns down by angle_down then rolls by angle_roll (a root leaving the base first rolls by its azimuth), bends
+towards the vertical by its gravitropism (gravitropism · its original radius over the base's, Wheat-BRIDGES' 0.06 by
+default), and goes `length` forward.
 """
 import numpy as np
+
+from openalea.metafspm.coupling.geometry import follow_parents, roll_right
 
 LABEL_APEX = 2
 TYPE_NAMES = {1: "base", 2: "seminal support (RhizoDep's legacy)", 3: "seminal before emergence", 4: "adventitious support (legacy)",
@@ -20,83 +22,42 @@ TYPE_NAMES = {1: "base", 2: "seminal support (RhizoDep's legacy)", 3: "seminal b
               9: "just stopped", 10: "dead", 11: "just dead", 12: "nodule"}
 
 
-def _rotation(axis, angle_degrees):
-    a = np.radians(angle_degrees)
-    x, y, z = axis / np.linalg.norm(axis)
-    c, s = np.cos(a), np.sin(a)
-    C = 1 - c
-    return np.array([[c + x * x * C, x * y * C - z * s, x * z * C + y * s],
-                     [y * x * C + z * s, c + y * y * C, y * z * C - x * s],
-                     [z * x * C - y * s, z * y * C + x * s, c + z * z * C]])
-
-
-def positions(snapshot, origin=(0., 0., 0.), gravitropism=0.06):
-    """{vid: (start, end)}: the elements' end points, by the turtle above, from *origin* (the plant's position)."""
-    try:
-        from openalea.plantgl.all import PglTurtle, Vector3
-    except ImportError:
-        return _positions_without_tropism(snapshot, origin)
-    if not gravitropism:
-        return _positions_without_tropism(snapshot, origin)
+def positions(snapshot, origin=(0., 0., 0.), gravitropism=0.06, rotation=0.):
+    """{vid: (start, end)}: the elements' end points, as RootArchitecture's _placement places them (metafspm's
+    follow_parents: PlantGL's turtle, without PlantGL), from *origin* (the plant's position) rolled by *rotation* (°).
+    For records of any form (a run's, or rhizodep's legacy's)."""
     props = snapshot.props
-    children = {vid: [] for vid in snapshot.vertices}
-    roots = []
-    for vid in snapshot.vertices:
-        parent = snapshot.parent[vid]
-        (children[parent].append(vid) if parent in children else roots.append(vid))
-    turtle = PglTurtle()
-    turtle.down(180)                                   # rhizodep's plot_mtg: the graph upside down
-    turtle.tropism = (0, 0, -1)
-    start_state = (Vector3(*origin), turtle.getHeading(), turtle.getUp())
-    radius = props.get("original_radius", props["radius"])
-    out = {}
-    for root in roots:
-        base_radius = radius.get(root) or 1.
-        stack = [(root, start_state)]
-        while stack:
-            vid, (position, heading, up) = stack.pop()
-            turtle.move(position)
-            turtle.setHead(heading, up)
-            azimuth = props.get("azimuth", {}).get(vid, 0.) or 0.
-            if azimuth:
-                turtle.rollL(azimuth)
-            turtle.down(props["angle_down"].get(vid, 0.) or 0.)
-            turtle.rollL(props["angle_roll"].get(vid, 0.) or 0.)
-            turtle.elasticity = gravitropism * ((radius.get(vid) or 0.) / base_radius)
-            turtle.F(props["length"].get(vid, 0.) or 0.)
-            end = turtle.getPosition()
-            out[vid] = (np.array([position.x, position.y, position.z]), np.array([end.x, end.y, end.z]))
-            state = (Vector3(end), turtle.getHeading(), turtle.getUp())
-            for child in children[vid]:
-                stack.append((child, state))
-    return out
-
-
-def _positions_without_tropism(snapshot, origin=(0., 0., 0.)):
-    """positions without gravitropism (numpy, without PlantGL)."""
-    props = snapshot.props
-    children = {vid: [] for vid in snapshot.vertices}
-    roots = []
-    for vid in snapshot.vertices:
-        parent = snapshot.parent[vid]
-        (children[parent].append(vid) if parent in children else roots.append(vid))
-    out = {}
-    # the frame: heading, left
-    stack = [(vid, np.array(origin, dtype=float), np.array([0., 0., -1.]), np.array([0., 1., 0.])) for vid in roots]
+    vids = list(snapshot.vertices)
+    index = {vid: k for k, vid in enumerate(vids)}
+    parent = np.array([index.get(snapshot.parent[vid], -1) for vid in vids], dtype=np.int64)
+    children = {k: [] for k in range(len(vids))}
+    for k, p in enumerate(parent.tolist()):
+        if p >= 0:
+            children[p].append(k)
+    order, stack = [], [k for k in range(len(vids)) if parent[k] < 0][::-1]
     while stack:
-        vid, start, heading, left = stack.pop()
-        azimuth = props.get("azimuth", {}).get(vid, 0.) or 0.
-        if azimuth:
-            left = _rotation(heading, azimuth) @ left
-        pitch = _rotation(left, props["angle_down"].get(vid, 0.) or 0.)
-        heading = pitch @ heading
-        roll = _rotation(heading, props["angle_roll"].get(vid, 0.) or 0.)
-        left = roll @ left
-        end = start + heading * (props["length"].get(vid, 0.) or 0.)
-        out[vid] = (start, end)
-        for child in children[vid]:
-            stack.append((child, end, heading, left))
-    return out
+        k = stack.pop()
+        order.append(k)
+        stack.extend(children[k][::-1])
+
+    def values(name, default=None):
+        given = props.get(name, {}) if default is None else props.get(name, default)
+        return np.array([float(given.get(vid, 0.) or 0.) for vid in vids])
+
+    radius = values("original_radius") if "original_radius" in props else values("radius")
+    root_of = np.arange(len(vids))
+    for k in order:
+        if parent[k] >= 0:
+            root_of[k] = root_of[parent[k]]
+    reference = np.where(radius[root_of] > 0., radius[root_of], 1.)
+    heading, up = np.array([0., 0., -1.]), np.array([-1., 0., 0.])
+    roll_right(heading, up, float(rotation))
+    n = len(vids)
+    start, _, _, end = follow_parents(
+        np.asarray(order, dtype=np.int64), parent, np.tile(np.asarray(origin, dtype=float), (n, 1)),
+        np.tile(heading, (n, 1)), np.tile(up, (n, 1)), values("azimuth"), values("angle_down"), values("angle_roll"),
+        gravitropism * radius / reference, values("length"), np.array([0., 0., -1.]))
+    return {vid: (start[k], end[k]) for k, vid in enumerate(vids)}
 
 
 def draw_root_system(ax, snapshot, color_by="type", cmap="viridis", plane=(0, 2), linewidth_by_radius=True,

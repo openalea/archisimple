@@ -51,11 +51,10 @@ dependencies = []
 # section specific to conda-only distributed package (not used by pip yet)
 [tool.conda.environment]
 
-# metafspm (and through it openalea.mtg); numpy and pandas for the component; PlantGL and matplotlib for the drawings
-# (without PlantGL, the drawings have no gravitropism)
+# metafspm (and through it openalea.mtg, numba); numpy and pandas for the component; matplotlib for the drawings.
+# PlantGL only for the tests (the former drawing, the placement's reference)
 dependencies = [
     "openalea.metafspm",
-    "openalea.plantgl",
     "numpy",
     "pandas",
     "matplotlib",

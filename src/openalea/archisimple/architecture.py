@@ -27,6 +27,11 @@ element is a SubOrgan (a RootSegment, or a RootApex for an axis' tip), carrying 
 identified by their MPG ids. Their random draws are keyed by their lineage `key`: a pure function of
 their place in their plant, so independent of the visiting order and of the other plants of a population.
 
+Every call ends by placing the elements (`_placement`, metafspm's follow_parents: rhizodep's drawing, PlantGL's
+turtle without PlantGL): each element's start `x1`, `y1`, `z1`, its end `x2`, `y2`, `z2` and its frame, from its plant's
+position (z: minus its sowing depth) and rotation, its angles and its `gravitropism`. Hence `triangles()` (metafspm's
+slim cylinders) for light models and drawings, and positions for couplings with a soil grid.
+
 Codes: `type` (TYPE_*), `lateral_root_emergence_possibility` (EMERGENCE_*), `axis_type` (AXIS_*), integers.
 """
 import os
@@ -38,6 +43,7 @@ import pandas as pd
 
 from openalea.metafspm.coupling.component import (NewNodes, StructuralComponent, input_variable, parameter,
                                                    state_variable)
+from openalea.metafspm.coupling.geometry import follow_parents, roll_right
 from openalea.metafspm.data_structure import random_streams
 from openalea.metafspm.data_structure.configs import PropsConfig, ScalesConfig
 from openalea.metafspm.solve.decorator import actual, postsegmentation, potential, segmentation
@@ -290,6 +296,32 @@ class RootArchitecture(StructuralComponent):
                                                                                 "al. 2014, Eq. 3, LDs then "
                                                                                 "recalibrated)", by=BY, default=1.)
 
+    # --- The elements' placement (_placement: their start, end and frame) ---
+    x1: float = state_variable(unit="m", description="The element's start, x", state_variable_type=DESCRIPTOR,
+                               initialize=0., scale=SubOrgan)
+    y1: float = state_variable(unit="m", description="The element's start, y", state_variable_type=DESCRIPTOR,
+                               initialize=0., scale=SubOrgan)
+    z1: float = state_variable(unit="m", description="The element's start, z", state_variable_type=DESCRIPTOR,
+                               initialize=0., scale=SubOrgan)
+    x2: float = state_variable(unit="m", description="The element's end, x", state_variable_type=DESCRIPTOR,
+                               initialize=0., scale=SubOrgan)
+    y2: float = state_variable(unit="m", description="The element's end, y", state_variable_type=DESCRIPTOR,
+                               initialize=0., scale=SubOrgan)
+    z2: float = state_variable(unit="m", description="The element's end, z", state_variable_type=DESCRIPTOR,
+                               initialize=0., scale=SubOrgan)
+    heading_x: float = state_variable(unit="adim", description="The element's direction, x",
+                                      state_variable_type=DESCRIPTOR, initialize=0., scale=SubOrgan)
+    heading_y: float = state_variable(unit="adim", description="The element's direction, y",
+                                      state_variable_type=DESCRIPTOR, initialize=0., scale=SubOrgan)
+    heading_z: float = state_variable(unit="adim", description="The element's direction, z",
+                                      state_variable_type=DESCRIPTOR, initialize=-1., scale=SubOrgan)
+    up_x: float = state_variable(unit="adim", description="The element's frame's up, x (its roll)",
+                                 state_variable_type=DESCRIPTOR, initialize=-1., scale=SubOrgan)
+    up_y: float = state_variable(unit="adim", description="The element's frame's up, y", state_variable_type=DESCRIPTOR,
+                                 initialize=0., scale=SubOrgan)
+    up_z: float = state_variable(unit="adim", description="The element's frame's up, z", state_variable_type=DESCRIPTOR,
+                                 initialize=0., scale=SubOrgan)
+
     # --- Plant-scale state ---
     total_living_struct_mass: float = state_variable(unit="g", description="Living structural mass of the root system",
                                                      unit_comment="of dry weight", state_variable_type="extensive",
@@ -398,6 +430,12 @@ class RootArchitecture(StructuralComponent):
     root_order_treshold: int = parameter(unit="adim",
                                          description="the root order above which new lateral roots cannot be formed",
                                          by=BY, default=2)
+    gravitropism: float = parameter(unit="adim", description="The roots' bending towards the vertical at each "
+                                                              "element: its elasticity is gravitropism times its "
+                                                              "original radius over its plant base's",
+                                    value_comment="Wheat-BRIDGES' drawing value", by=BY, default=0.06)
+    placement: int = parameter(unit="adim", description="1: the elements placed at each call (_placement); 0: not",
+                               by=BY, default=1)
 
     # Coupled, the other components' variables are shared between the elements once per call, as RhizoDep's
     # post_growth_updating does it, but conservatively (metafspm's repartition): by the living
@@ -1312,3 +1350,35 @@ class RootArchitecture(StructuralComponent):
         owner = np.asarray(ds.owner("Plant"))
         totals = np.bincount(owner, weights=living, minlength=np.asarray(ds.entity_ids("Plant")).size)
         return {"living_struct_mass": living, "total_living_struct_mass": totals}
+
+    @postsegmentation
+    def _placement(self, length, azimuth, angle_down, angle_roll, original_radius, gravitropism, placement) -> dict:
+        """The elements' start, end and frame, as rhizodep's drawing places them (metafspm's follow_parents, PlantGL's
+        turtle): from its plant's position (minus its sowing depth), heading down, rolled by its rotation, each element
+        from its parent's end turns by its azimuth (a root leaving the base), its angle_down and its angle_roll, bends
+        towards the vertical by its elasticity (gravitropism times its original radius over its plant base's), and
+        goes its length forward. Skipped when placement is 0."""
+        if not np.any(np.asarray(placement) > 0):
+            return None
+        ds = self.data_structure
+        g = ds.structure
+        plants = np.asarray(ds.entity_ids("Plant"))
+        owner = np.asarray(ds.owner("Plant"))
+        base_position = np.array([[g.property(name).get(int(plant), 0.) for name in ("x", "y", "z")]
+                                  for plant in plants], dtype=float).reshape(-1, 3)
+        base_heading = np.tile([0., 0., -1.], (plants.size, 1))       # PlantGL's turtle turned down (down(180))
+        base_up = np.tile([-1., 0., 0.], (plants.size, 1))
+        for k, plant in enumerate(plants.tolist()):
+            roll_right(base_heading[k], base_up[k], float(g.property("rotation").get(plant, 0.) or 0.))
+        parent = np.asarray(ds.parents(), dtype=np.int64)
+        bases = np.flatnonzero(parent < 0)
+        reference = np.ones(plants.size)
+        reference[owner[bases]] = np.where(original_radius[bases] > 0., original_radius[bases], 1.)
+        elasticity = np.asarray(gravitropism, dtype=float) * original_radius / reference[owner]
+        position, heading, up, end = follow_parents(
+            np.asarray(ds.order("pre"), dtype=np.int64), parent, base_position[owner], base_heading[owner],
+            base_up[owner], np.asarray(azimuth, dtype=float), np.asarray(angle_down, dtype=float),
+            np.asarray(angle_roll, dtype=float), elasticity, np.asarray(length, dtype=float), np.array([0., 0., -1.]))
+        return {"x1": position[:, 0], "y1": position[:, 1], "z1": position[:, 2], "x2": end[:, 0], "y2": end[:, 1],
+                "z2": end[:, 2], "heading_x": heading[:, 0], "heading_y": heading[:, 1], "heading_z": heading[:, 2],
+                "up_x": up[:, 0], "up_y": up[:, 1], "up_z": up[:, 2]}
