@@ -15,7 +15,7 @@ def stepped(built, n_steps, struct_mass_input=None):
     for step in range(n_steps):
         if struct_mass_input is not None:
             ds.set("struct_mass_input", np.full(len(ds.entity_ids("Plant")), struct_mass_input))
-        for stage in ("potential", "actual", "segmentation", "post_growth"):
+        for stage in ("potential", "actual", "segmentation", "postsegmentation"):
             run_stage(built, stage)
             if step == n_steps - 1 and stage == "potential":
                 potential = {name: np.array(ds.get(name)) for name in (

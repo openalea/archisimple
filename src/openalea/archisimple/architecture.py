@@ -64,12 +64,6 @@ EMERGENCE_IMPOSSIBLE, EMERGENCE_POSSIBLE = 0, 1
 AXIS_SEMINAL, AXIS_NODAL, AXIS_LATERAL = 0, 1, 2
 
 
-def doc(unit, description, unit_comment="", min_value="", max_value="", value_comment="", references="", DOI=""):
-    """The documentation entries of a declaration."""
-    return dict(unit=unit, unit_comment=unit_comment, description=description, min_value=min_value,
-                max_value=max_value, value_comment=value_comment, references=references, DOI=DOI)
-
-
 EDGES = {"<": 0, "+": 1}
 
 
@@ -85,11 +79,6 @@ def child_keys(parent_keys, edge, rank=0) -> np.ndarray:
     52 bits, so that a key is exact in a float array."""
     return (random_streams.bits(np.asarray(parent_keys, dtype=np.int64).reshape(-1), stream="lineage",
                                 step=EDGES[edge], draw=rank) >> np.uint64(12)).astype(np.int64)
-
-
-def outputs(k):
-    """The return annotation of a step with k outputs besides its own: (values, name, values, ...)."""
-    return tuple[(np.ndarray,) + (str, np.ndarray) * k]
 
 
 EVENTS = ("primordium_formation", "emergence", "cells_formation", "growth_stopped", "death")
@@ -111,10 +100,10 @@ class Clocks:
             self.actual[event][selected] += time_step
             self.thermal[event][selected] += thermal_time_step[selected]
 
-    def outputs(self) -> tuple:
-        """("actual_time_since_<event>", values, "thermal_time_since_<event>", values, ...), for a step's return."""
-        return tuple(item for event in self.actual for item in (f"actual_time_since_{event}", self.actual[event],
-                                                                f"thermal_time_since_{event}", self.thermal[event]))
+    def outputs(self) -> dict:
+        """{"actual_time_since_<event>": values, "thermal_time_since_<event>": values, ...}, for a step's return."""
+        return {name: values for event in self.actual for name, values in (
+            (f"actual_time_since_{event}", self.actual[event]), (f"thermal_time_since_{event}", self.thermal[event]))}
 
 
 def temperature_modification(soil_temperature, process_at_T_ref, T_ref, A, B, C):
@@ -138,291 +127,276 @@ class RootArchitecture(StructuralComponent):
     adds the limitation by resources.
     """
     # --- Inputs ---
-    soil_temperature: float = input_variable(**doc('°C', 'soil temperature in contact with roots'),
-                                             by='model_soil', initialize=15, scale=SubOrgan)
-    root_tissue_density: float = input_variable(**doc('g.m-3', 'root_tissue_density',
-                                                      unit_comment='of structural mass'),
-                                                by='model_anatomy', initialize=100000.0, scale=SubOrgan)
+    soil_temperature: float = input_variable(unit="°C", description="soil temperature in contact with roots",
+                                             by="model_soil", initialize=15, scale=SubOrgan)
+    root_tissue_density: float = input_variable(unit="g.m-3", description="root_tissue_density",
+                                                unit_comment="of structural mass", by="model_anatomy",
+                                                initialize=100000.0, scale=SubOrgan)
 
     # --- State variables, declared by RhizoDep ---
-    type: int = state_variable(**doc('', 'Example segment type provided by root growth model'),
-                               state_variable_type=NII, initialize=1, scale=SubOrgan, dtype='int')
-    root_order: int = state_variable(**doc('',
-                                           "Example root segment's axis order computed by the initiate_mtg method or "
-                                           'provided as input'),
-                                     state_variable_type=DESCRIPTOR, initialize=1, scale=SubOrgan, dtype='int')
-    key: int = state_variable(**doc('dimensionless', "The element's lineage key, its random draws' identity: from its "
-                                                     "parent's, its edge and its rank",
-                                    value_comment='-1 as default when not assigned'),
-                              state_variable_type=DESCRIPTOR, initialize=-1, scale=SubOrgan, dtype='int')
-    axis_apex_id: int = state_variable(**doc('dimensionless',
-                                             'Node id (the MPG vertex) of the terminal apex of the root axis bearing '
-                                             'the considered segment',
-                                             value_comment='-1 as default when not assigned'),
-                                       state_variable_type=NII, initialize=-1, scale=SubOrgan, dtype='int')
-    lateral_primordium_index: int = state_variable(**doc('dimensionless',
-                                                         'Node id of the lateral primordium emerging on the element'),
-                                                   state_variable_type=NII, initialize=-1, scale=SubOrgan, dtype='int')
-    step_elongating: int = state_variable(**doc('adim', 'Whether the element could elongate in the last actual growth '
-                                                        '(RhizoDep\'s step_elongating_elements)'),
-                                          state_variable_type=DESCRIPTOR, initialize=0, scale=SubOrgan, dtype='int')
-    axis_type: int = state_variable(**doc('', 'Example axis type provided by root growth model'),
-                                    state_variable_type=DESCRIPTOR, initialize=0, scale=SubOrgan, dtype='int')
-    radius: float = state_variable(**doc('m', 'Example root segment radius'),
-                                   state_variable_type=NII, initialize=0.00035, scale=SubOrgan)
-    z1: float = state_variable(**doc('m', 'Depth of the segment tip computed by plantGL, colar side'),
+    type: int = state_variable(unit="", description="Example segment type provided by root growth model",
+                               state_variable_type=NII, initialize=1, scale=SubOrgan, dtype="int")
+    root_order: int = state_variable(unit="", description="Example root segment's axis order computed by the "
+                                                          "initiate_mtg method or provided as input",
+                                     state_variable_type=DESCRIPTOR, initialize=1, scale=SubOrgan, dtype="int")
+    key: int = state_variable(unit="dimensionless", description="The element's lineage key, its random draws' "
+                                                                "identity: from its parent's, its edge and its rank",
+                              value_comment="-1 as default when not assigned", state_variable_type=DESCRIPTOR,
+                              initialize=-1, scale=SubOrgan, dtype="int")
+    axis_apex_id: int = state_variable(unit="dimensionless", description="Node id (the MPG vertex) of the terminal "
+                                                                         "apex of the root axis bearing the "
+                                                                         "considered segment",
+                                       value_comment="-1 as default when not assigned", state_variable_type=NII,
+                                       initialize=-1, scale=SubOrgan, dtype="int")
+    lateral_primordium_index: int = state_variable(unit="dimensionless", description="Node id of the lateral "
+                                                                                     "primordium emerging on the "
+                                                                                     "element", state_variable_type=NII,
+                                                   initialize=-1, scale=SubOrgan, dtype="int")
+    step_elongating: int = state_variable(unit="adim", description="Whether the element could elongate in the last "
+                                                                   "actual growth (RhizoDep's "
+                                                                   "step_elongating_elements)",
+                                          state_variable_type=DESCRIPTOR, initialize=0, scale=SubOrgan, dtype="int")
+    axis_type: int = state_variable(unit="", description="Example axis type provided by root growth model",
+                                    state_variable_type=DESCRIPTOR, initialize=0, scale=SubOrgan, dtype="int")
+    radius: float = state_variable(unit="m", description="Example root segment radius", state_variable_type=NII,
+                                   initialize=0.00035, scale=SubOrgan)
+    z1: float = state_variable(unit="m", description="Depth of the segment tip computed by plantGL, colar side",
                                state_variable_type=NII, initialize=0.0, scale=SubOrgan)
-    z2: float = state_variable(**doc('m', 'Depth of the segment tip computed by plantGL, apex side'),
+    z2: float = state_variable(unit="m", description="Depth of the segment tip computed by plantGL, apex side",
                                state_variable_type=NII, initialize=0.0, scale=SubOrgan)
-    length: float = state_variable(**doc('m', 'Example root segment length'),
-                                   state_variable_type=NIE, initialize=0.003, scale=SubOrgan)
-    initial_length: float = state_variable(**doc('m', 'Example root segment length'),
-                                           state_variable_type=NIE, initialize=0.003, scale=SubOrgan)
-    struct_mass: float = state_variable(**doc('g', 'Example root segment structural mass'),
+    length: float = state_variable(unit="m", description="Example root segment length", state_variable_type=NIE,
+                                   initialize=0.003, scale=SubOrgan)
+    initial_length: float = state_variable(unit="m", description="Example root segment length", state_variable_type=NIE,
+                                           initialize=0.003, scale=SubOrgan)
+    struct_mass: float = state_variable(unit="g", description="Example root segment structural mass",
                                         state_variable_type=NIE, initialize=0.000135, scale=SubOrgan)
-    initial_struct_mass: float = state_variable(**doc('g',
-                                                      'Same as struct_mass but corresponds to the previous time step;'
-                                                      ' it is intended to record the variation'),
-                                                state_variable_type=NIE, initialize=0.000135, scale=SubOrgan)
-    living_struct_mass: float = state_variable(**doc('g', 'Living structural mass of the element (with its root '
-                                                          'hairs in RootGrowth)'),
+    initial_struct_mass: float = state_variable(unit="g", description="Same as struct_mass but corresponds to the "
+                                                                      "previous time step; it is intended to record "
+                                                                      "the variation", state_variable_type=NIE,
+                                                initialize=0.000135, scale=SubOrgan)
+    living_struct_mass: float = state_variable(unit="g", description="Living structural mass of the element (with its "
+                                                                     "root hairs in RootGrowth)",
                                                state_variable_type=NIE, initialize=0.0, scale=SubOrgan)
-    distance_from_tip: float = state_variable(**doc('m', 'Example distance from tip'),
+    distance_from_tip: float = state_variable(unit="m", description="Example distance from tip",
                                               state_variable_type=NII, initialize=0.003, scale=SubOrgan)
-    volume: float = state_variable(**doc('m3', 'Initial volume of the collar element'),
+    volume: float = state_variable(unit="m3", description="Initial volume of the collar element",
                                    state_variable_type=NIE, initialize=1e-09, scale=SubOrgan)
-    struct_mass_produced: float = state_variable(**doc('g', '', unit_comment='of dry weight'),
+    struct_mass_produced: float = state_variable(unit="g", description="", unit_comment="of dry weight",
                                                  state_variable_type=NIE, initialize=0, scale=SubOrgan)
-    thermal_time_since_emergence: float = state_variable(**doc('s', ''),
-                                                         state_variable_type=NII, initialize=0, scale=SubOrgan)
-    thermal_time_since_cells_formation: float = state_variable(**doc('s', 'Thermal time since tissue formation'),
+    thermal_time_since_emergence: float = state_variable(unit="s", description="", state_variable_type=NII,
+                                                         initialize=0, scale=SubOrgan)
+    thermal_time_since_cells_formation: float = state_variable(unit="s",
+                                                               description="Thermal time since tissue formation",
                                                                state_variable_type=NII, initialize=0, scale=SubOrgan)
-    actual_time_since_formation: float = state_variable(**doc('s', ''),
-                                                        state_variable_type=NII, initialize=0, scale=SubOrgan)
-    tissue_formation_time: float = state_variable(**doc('day', ''),
-                                                  state_variable_type=NII, initialize=0, scale=SubOrgan)
+    actual_time_since_formation: float = state_variable(unit="s", description="", state_variable_type=NII, initialize=0,
+                                                        scale=SubOrgan)
+    tissue_formation_time: float = state_variable(unit="day", description="", state_variable_type=NII, initialize=0,
+                                                  scale=SubOrgan)
 
     # --- State variables RhizoDep writes without declaring them ---
-    actual_elongation: float = state_variable(**doc('m', 'Length gained by the element during the time step'),
+    actual_elongation: float = state_variable(unit="m", description="Length gained by the element during the time step",
                                               state_variable_type=NIE, initialize=0.0, scale=SubOrgan)
-    actual_elongation_rate: float = state_variable(**doc('m.s-1',
-                                                         'Elongation rate of the element during the time step'),
+    actual_elongation_rate: float = state_variable(unit="m.s-1",
+                                                   description="Elongation rate of the element during the time step",
                                                    state_variable_type=NIE, initialize=0.0, scale=SubOrgan)
-    actual_potential_time_since_emergence: float = state_variable(**doc('s',
-                                                                        'Time since the potential emergence of the '
-                                                                        'primordium'),
+    actual_potential_time_since_emergence: float = state_variable(unit="s", description="Time since the potential "
+                                                                                        "emergence of the primordium",
                                                                   state_variable_type=NII, initialize=0.0,
                                                                   scale=SubOrgan)
-    actual_time_since_cells_formation: float = state_variable(**doc('s',
-                                                                    "Time since the formation of the element's cells"),
+    actual_time_since_cells_formation: float = state_variable(unit="s", description="Time since the formation of the "
+                                                                                    "element's cells",
                                                               state_variable_type=NII, initialize=0.0, scale=SubOrgan)
-    actual_time_since_death: float = state_variable(**doc('s', 'Time since the death of the element'),
+    actual_time_since_death: float = state_variable(unit="s", description="Time since the death of the element",
                                                     state_variable_type=NII, initialize=0.0, scale=SubOrgan)
-    actual_time_since_emergence: float = state_variable(**doc('s', "Time since the emergence of the element's axis"),
+    actual_time_since_emergence: float = state_variable(unit="s",
+                                                        description="Time since the emergence of the element's axis",
                                                         state_variable_type=NII, initialize=0.0, scale=SubOrgan)
-    actual_time_since_growth_stopped: float = state_variable(**doc('s',
-                                                                   "Time since the growth of the element's axis "
-                                                                   'stopped'),
+    actual_time_since_growth_stopped: float = state_variable(unit="s", description="Time since the growth of the "
+                                                                                   "element's axis stopped",
                                                              state_variable_type=NII, initialize=0.0, scale=SubOrgan)
-    actual_time_since_primordium_formation: float = state_variable(**doc('s',
-                                                                         'Time since the formation of the primordium'),
+    actual_time_since_primordium_formation: float = state_variable(unit="s", description="Time since the formation of "
+                                                                                         "the primordium",
                                                                    state_variable_type=NII, initialize=0.0,
                                                                    scale=SubOrgan)
-    angle_down: float = state_variable(**doc('°',
-                                             "Insertion angle of the element relative to its parent's direction "
-                                             '(pitch)'),
+    angle_down: float = state_variable(unit="°", description="Insertion angle of the element relative to its parent's "
+                                                             "direction (pitch)", state_variable_type=NII,
+                                       initialize=0.0, scale=SubOrgan)
+    angle_roll: float = state_variable(unit="°", description="Roll of the element around its parent's direction",
                                        state_variable_type=NII, initialize=0.0, scale=SubOrgan)
-    angle_roll: float = state_variable(**doc('°', "Roll of the element around its parent's direction"),
-                                       state_variable_type=NII, initialize=0.0, scale=SubOrgan)
-    azimuth: float = state_variable(**doc('°', "Roll of the parent's frame around its direction before the element's "
-                                               "pitch (angle_down): the direction a root leaves the base in (the "
-                                               "legacy's support's roll)"),
+    azimuth: float = state_variable(unit="°", description="Roll of the parent's frame around its direction before the "
+                                                          "element's pitch (angle_down): the direction a root leaves "
+                                                          "the base in (the legacy's support's roll)",
                                     state_variable_type=DESCRIPTOR, initialize=0.0, scale=SubOrgan)
-    dist_to_ramif: float = state_variable(**doc('m', 'Length elongated by the apex since its last lateral primordium'),
+    dist_to_ramif: float = state_variable(unit="m",
+                                          description="Length elongated by the apex since its last lateral primordium",
                                           state_variable_type=NII, initialize=0.0, scale=SubOrgan)
-    emergence_cost: float = state_variable(**doc('mol of hexose', "Hexose needed for a primordium's emergence"),
+    emergence_cost: float = state_variable(unit="mol of hexose",
+                                           description="Hexose needed for a primordium's emergence",
                                            state_variable_type=NIE, initialize=0.0, scale=SubOrgan)
-    emergence_delay_in_thermal_time: float = state_variable(**doc('s',
-                                                                  'Thermal time before a seminal or nodal primordium '
-                                                                  'emerges'),
+    emergence_delay_in_thermal_time: float = state_variable(unit="s", description="Thermal time before a seminal or "
+                                                                                  "nodal primordium emerges",
                                                             state_variable_type=NII, initialize=0.0, scale=SubOrgan)
-    former_distance_from_tip: float = state_variable(**doc('m', 'Distance from the tip before the last growth'),
+    former_distance_from_tip: float = state_variable(unit="m",
+                                                     description="Distance from the tip before the last growth",
                                                      state_variable_type=NII, initialize=0.0, scale=SubOrgan)
-    growth_duration: float = state_variable(**doc('s', 'Thermal time during which the apex can grow'),
+    growth_duration: float = state_variable(unit="s", description="Thermal time during which the apex can grow",
                                             state_variable_type=NII, initialize=0.0, scale=SubOrgan)
-    initial_radius: float = state_variable(**doc('m', 'Radius at the start of the time step'),
+    initial_radius: float = state_variable(unit="m", description="Radius at the start of the time step",
                                            state_variable_type=NII, initialize=0.0, scale=SubOrgan)
-    lateral_root_emergence_possibility: int = state_variable(**doc('adim',
-                                                                   'Whether a lateral primordium may emerge on the '
-                                                                   'element (EMERGENCE_* codes)'),
+    lateral_root_emergence_possibility: int = state_variable(unit="adim", description="Whether a lateral primordium "
+                                                                                      "may emerge on the element "
+                                                                                      "(EMERGENCE_* codes)",
                                                              state_variable_type=DESCRIPTOR, initialize=0,
-                                                             scale=SubOrgan, dtype='int')
-    life_duration: float = state_variable(**doc('s', 'Thermal time the element lives after its axis stopped growing'),
+                                                             scale=SubOrgan, dtype="int")
+    life_duration: float = state_variable(unit="s",
+                                          description="Thermal time the element lives after its axis stopped growing",
                                           state_variable_type=NII, initialize=0.0, scale=SubOrgan)
-    original_radius: float = state_variable(**doc('m', 'Radius of the element at its formation'),
+    original_radius: float = state_variable(unit="m", description="Radius of the element at its formation",
                                             state_variable_type=NII, initialize=0.0, scale=SubOrgan)
-    potential_length: float = state_variable(**doc('m', 'Length of the element after its potential growth'),
+    potential_length: float = state_variable(unit="m", description="Length of the element after its potential growth",
                                              state_variable_type=NIE, initialize=0.0, scale=SubOrgan)
-    potential_radius: float = state_variable(**doc('m', 'Radius of the element after its potential growth'),
+    potential_radius: float = state_variable(unit="m", description="Radius of the element after its potential growth",
                                              state_variable_type=NII, initialize=0.0, scale=SubOrgan)
-    temperature_modification: float = state_variable(**doc('adim', "Temperature factor of the element's thermal times"),
+    temperature_modification: float = state_variable(unit="adim",
+                                                     description="Temperature factor of the element's thermal times",
                                                      state_variable_type=NII, initialize=1.0, scale=SubOrgan)
-    theoretical_radius: float = state_variable(**doc('m', "Radius the element would have from its axis' first radius"),
+    theoretical_radius: float = state_variable(unit="m",
+                                               description="Radius the element would have from its axis' first radius",
                                                state_variable_type=NII, initialize=0.0, scale=SubOrgan)
-    thermal_potential_time_since_emergence: float = state_variable(**doc('s',
-                                                                         'Thermal time since the potential emergence '
-                                                                         'of the primordium'),
+    thermal_potential_time_since_emergence: float = state_variable(unit="s", description="Thermal time since the "
+                                                                                         "potential emergence of the "
+                                                                                         "primordium",
                                                                    state_variable_type=NII, initialize=0.0,
                                                                    scale=SubOrgan)
-    thermal_time_since_death: float = state_variable(**doc('s', 'Thermal time since the death of the element'),
+    thermal_time_since_death: float = state_variable(unit="s",
+                                                     description="Thermal time since the death of the element",
                                                      state_variable_type=NII, initialize=0.0, scale=SubOrgan)
-    thermal_time_since_growth_stopped: float = state_variable(**doc('s',
-                                                                    "Thermal time since the growth of the element's "
-                                                                    'axis stopped'),
+    thermal_time_since_growth_stopped: float = state_variable(unit="s", description="Thermal time since the growth of "
+                                                                                    "the element's axis stopped",
                                                               state_variable_type=NII, initialize=0.0, scale=SubOrgan)
-    thermal_time_since_primordium_formation: float = state_variable(**doc('s',
-                                                                          'Thermal time since the formation of the '
-                                                                          'primordium'),
+    thermal_time_since_primordium_formation: float = state_variable(unit="s", description="Thermal time since the "
+                                                                                          "formation of the primordium",
                                                                     state_variable_type=NII, initialize=0.0,
                                                                     scale=SubOrgan)
-    struct_mass_input: float = input_variable(
-        **doc('g', 'Structural mass offered to the root system\'s growth in the step (ArchiSimple)',
-              value_comment='infinite by default: no limitation'),
-        by='model_shoot', initialize=float("inf"), scale=ScalesConfig.Plant)
+    struct_mass_input: float = input_variable(unit="g", description="Structural mass offered to the root system's "
+                                                                    "growth in the step (ArchiSimple)",
+                                              value_comment="infinite by default: no limitation", by="model_shoot",
+                                              initialize=float('inf'), scale=ScalesConfig.Plant)
 
-    life_duration_diameter_exponent: float = parameter(
-        **doc('adim', "The exponent of the diameter in the life duration LDs·d^e·density: 1, RhizoDep's (its legacy "
-                      "and main branch); 2, ArchiSimple's (Pagès et al. 2014, Eq. 3, LDs then recalibrated)"),
-        by=BY, default=1.)
+    life_duration_diameter_exponent: float = parameter(unit="adim", description="The exponent of the diameter in the "
+                                                                                "life duration LDs·d^e·density: 1, "
+                                                                                "RhizoDep's (its legacy and main "
+                                                                                "branch); 2, ArchiSimple's (Pagès et "
+                                                                                "al. 2014, Eq. 3, LDs then "
+                                                                                "recalibrated)", by=BY, default=1.)
 
     # --- Plant-scale state ---
-    total_living_struct_mass: float = state_variable(**doc('g', 'Living structural mass of the root system',
-                                                           unit_comment='of dry weight'),
-                                                     state_variable_type='extensive', initialize=0.,
-                                                     scale=ScalesConfig.Plant)
+    total_living_struct_mass: float = state_variable(unit="g", description="Living structural mass of the root system",
+                                                     unit_comment="of dry weight", state_variable_type="extensive",
+                                                     initialize=0., scale=ScalesConfig.Plant)
 
     # --- Parameters ---
-    D_ini: float = parameter(**doc('m', 'Initial tip diameter of the primary root'), by=BY, default=0.0008)
-    LDs: float = parameter(**doc('s.m-1..g-1.m-3', 'Life duration per diameter (to its exponent) and tissue density',
-                                 unit_comment='time equivalent at temperature of T_ref',
-                                 references='5000 day mm-1 g-1 cm3 (??)'),
-                           by=BY, default=345600.0)
-    ER: float = parameter(**doc('.s-1', 'Emission rate of adventitious roots',
-                                unit_comment='time equivalent at temperature of T_ref'),
-                          by=BY, default=2.3148148148148148e-06)
-    n_seminal_roots: int = parameter(**doc('adim',
-                                           'Maximal number of roots emerging from the base (including primary and '
-                                           'seminal roots)'),
-                                     by=BY, default=5)
-    n_adventitious_roots: int = parameter(**doc('adim',
-                                                'Maximal number of roots emerging from the base (including primary '
-                                                'and seminal roots)'),
-                                          by=BY, default=10)
-    random_choice: int = parameter(**doc('adim',
-                                         'We set the random seed, so that the same simulation can be repeted with the'
-                                         ' same seed:'),
-                                   by=BY, default=8)
-    D_sem_to_D_ini_ratio: float = parameter(**doc('adim',
-                                                  'Proportionality coefficient between the tip diameter of a seminal '
-                                                  'root and D_ini'),
-                                            by=BY, default=0.95)
-    CVDD: float = parameter(**doc('adim', 'Relative variation of the daughter root diameter'), by=BY, default=0.2)
-    starting_time_for_adventitious_roots_emergence: float = parameter(**doc('s',
-                                                                            'Time when adventitious roots start to '
-                                                                            'successively emerge',
-                                                                            unit_comment='time equivalent at '
-                                                                                         'temperature of T_ref'),
-                                                                      by=BY, default=777600.0)
-    D_adv_to_D_ini_ratio: float = parameter(**doc('adim',
-                                                  'Proportionality coefficient between the tip diameter of an '
-                                                  'adventitious root and D_ini '),
+    D_ini: float = parameter(unit="m", description="Initial tip diameter of the primary root", by=BY, default=0.0008)
+    LDs: float = parameter(unit="s.m-1..g-1.m-3",
+                           description="Life duration per diameter (to its exponent) and tissue density",
+                           unit_comment="time equivalent at temperature of T_ref",
+                           references="5000 day mm-1 g-1 cm3 (??)", by=BY, default=345600.0)
+    ER: float = parameter(unit=".s-1", description="Emission rate of adventitious roots",
+                          unit_comment="time equivalent at temperature of T_ref", by=BY, default=2.3148148148148148e-06)
+    n_seminal_roots: int = parameter(unit="adim", description="Maximal number of roots emerging from the base "
+                                                              "(including primary and seminal roots)", by=BY, default=5)
+    n_adventitious_roots: int = parameter(unit="adim", description="Maximal number of roots emerging from the base "
+                                                                   "(including primary and seminal roots)", by=BY,
+                                          default=10)
+    random_choice: int = parameter(unit="adim", description="We set the random seed, so that the same simulation can "
+                                                            "be repeted with the same seed:", by=BY, default=8)
+    D_sem_to_D_ini_ratio: float = parameter(unit="adim", description="Proportionality coefficient between the tip "
+                                                                     "diameter of a seminal root and D_ini", by=BY,
+                                            default=0.95)
+    CVDD: float = parameter(unit="adim", description="Relative variation of the daughter root diameter", by=BY,
+                            default=0.2)
+    starting_time_for_adventitious_roots_emergence: float = parameter(unit="s", description="Time when adventitious "
+                                                                                            "roots start to "
+                                                                                            "successively emerge",
+                                                                      unit_comment="time equivalent at temperature of "
+                                                                                   "T_ref", by=BY, default=777600.0)
+    D_adv_to_D_ini_ratio: float = parameter(unit="adim", description="Proportionality coefficient between the tip "
+                                                                     "diameter of an adventitious root and D_ini ",
                                             by=BY, default=0.8)
-    process_at_T_ref: float = parameter(**doc('adim', 'Proportion of maximal process intensity occuring at T_ref'),
-                                        by=BY, default=1.0)
-    T_ref: float = parameter(**doc('°C', 'the reference temperature',
-                                   references='We assume that relative growth is 0 at T_ref=0 degree Celsius, and '
-                                              'linearily increases to reach 1 at 20 degree.'),
+    process_at_T_ref: float = parameter(unit="adim",
+                                        description="Proportion of maximal process intensity occuring at T_ref", by=BY,
+                                        default=1.0)
+    T_ref: float = parameter(unit="°C", description="the reference temperature", references="We assume that relative "
+                                                                                            "growth is 0 at T_ref=0 "
+                                                                                            "degree Celsius, and "
+                                                                                            "linearily increases to "
+                                                                                            "reach 1 at 20 degree.",
                              by=BY, default=0.0)
-    A: float = parameter(**doc('adim', 'parameter A (may be equivalent to the coefficient of linear increase)'),
-                         by=BY, default=0.05)
-    B: int = parameter(**doc('adim', 'parameter B (may be equivalent to the Q10 value)'), by=BY, default=0)
-    C: int = parameter(**doc('adim', 'parameter C (either 0 or 1)'), by=BY, default=0)
-    emergence_delay: float = parameter(**doc('s', 'Delay of emergence of the primordium',
-                                             unit_comment='time equivalent at temperature of T_ref',
-                                             references='emergence_delay = 3 days (??)'),
-                                       by=BY, default=282528.0)
-    EL: float = parameter(**doc('s-1', 'Slope of the elongation rate = f(tip diameter) ',
-                                unit_comment='meters of root per meter of radius per second equivalent to '
-                                             'T_ref_growth',
-                                references='EL = 5 mm mm-1 day-1 (??)'),
-                          by=BY, default=0.00065)
-    SGC: float = parameter(**doc('adim',
-                                 'Proportionality coefficient between the section area of the segment and the sum of '
-                                 'distal section areas'),
-                           by=BY, default=0.0)
-    struct_mass_C_content: float = parameter(**doc('mol.g-1', 'C content of structural mass',
-                                                   unit_comment='of carbon',
-                                                   references='We assume that the structural mass contains 44% of C. '
-                                                              '(??)'),
+    A: float = parameter(unit="adim",
+                         description="parameter A (may be equivalent to the coefficient of linear increase)", by=BY,
+                         default=0.05)
+    B: int = parameter(unit="adim", description="parameter B (may be equivalent to the Q10 value)", by=BY, default=0)
+    C: int = parameter(unit="adim", description="parameter C (either 0 or 1)", by=BY, default=0)
+    emergence_delay: float = parameter(unit="s", description="Delay of emergence of the primordium",
+                                       unit_comment="time equivalent at temperature of T_ref",
+                                       references="emergence_delay = 3 days (??)", by=BY, default=282528.0)
+    EL: float = parameter(unit="s-1", description="Slope of the elongation rate = f(tip diameter) ",
+                          unit_comment="meters of root per meter of radius per second equivalent to T_ref_growth",
+                          references="EL = 5 mm mm-1 day-1 (??)", by=BY, default=0.00065)
+    SGC: float = parameter(unit="adim", description="Proportionality coefficient between the section area of the "
+                                                    "segment and the sum of distal section areas", by=BY, default=0.0)
+    struct_mass_C_content: float = parameter(unit="mol.g-1", description="C content of structural mass",
+                                             unit_comment="of carbon",
+                                             references="We assume that the structural mass contains 44% of C. (??)",
                                              by=BY, default=0.03663613655287261)
-    segment_length: float = parameter(**doc('m', 'Length of a segment'), by=BY, default=0.003)
-    nodule_formation_probability: float = parameter(**doc('m',
-                                                          'Probability (between 0 and 1) of nodule formation for each'
-                                                          ' apex that elongates'),
+    segment_length: float = parameter(unit="m", description="Length of a segment", by=BY, default=0.003)
+    nodule_formation_probability: float = parameter(unit="m", description="Probability (between 0 and 1) of nodule "
+                                                                          "formation for each apex that elongates",
                                                     by=BY, default=0.5)
-    Dmin: float = parameter(**doc('m',
-                                  'Minimal threshold tip diameter (i.e. the diameter of the finest observable roots)',
-                                  references='Dmin=0.05 mm (??)'),
-                            by=BY, default=0.000122)
-    RMD: float = parameter(**doc('adim',
-                                 'Average ratio of the diameter of the daughter root to that of the mother root'),
+    Dmin: float = parameter(unit="m", description="Minimal threshold tip diameter (i.e. the diameter of the finest "
+                                                  "observable roots)", references="Dmin=0.05 mm (??)", by=BY,
+                            default=0.000122)
+    RMD: float = parameter(unit="adim",
+                           description="Average ratio of the diameter of the daughter root to that of the mother root",
                            by=BY, default=0.57)
-    IPD: float = parameter(**doc('m', 'Inter-primordia distance', references='IPD = 7.6 mm (??)'),
-                           by=BY, default=0.00474)
-    new_root_tissue_density: float = parameter(**doc('g.m-3', 'root_tissue_density',
-                                                     unit_comment='of structural mass'),
-                                               by=BY, default=140000.0)
-    GDs: float = parameter(**doc('s.m-2', 'Coefficient of growth duration',
-                                 unit_comment='time equivalent at temperature of T_ref',
-                                 references='Reference: GDs=930. day mm-2 (Pagès et Picon-Cochard, 2014)'),
-                           by=BY, default=69120000000000.0)
-    main_roots_growth_extender: float = parameter(**doc('s.s-1',
-                                                        'Coefficient of growth duration extension, by which the '
-                                                        'theoretical growth duration is multiplied for seminal and '
-                                                        'adventitious roots',
-                                                        references='Reference: GDs=400. day mm-2 ()'),
-                                                  by=BY, default=100.0)
-    random: bool = parameter(**doc('adim', 'Allow random processes in growth'), by=BY, default=True)
-    initial_segment_length: float = parameter(**doc('m', 'Initial segment length'), by=BY, default=0.001)
-    initial_apex_length: float = parameter(**doc('m', 'Initial apex length'), by=BY, default=0.0001)
-    input_file_path: str = parameter(**doc('m', 'Filepath for input files'), by=BY, default='inputs')
-    forcing_seminal_roots_events: bool = parameter(**doc('m',
-                                                         'a Boolean expliciting if seminal root events should be '
-                                                         'forced'),
-                                                   by=BY, default=False)
-    seminal_roots_events_file: str = parameter(**doc('m',
-                                                     'Filepath pointing to input table to plan seminal root emergence'
-                                                     ' event'),
-                                               by=BY, default='seminal_roots_inputs.csv')
-    forcing_adventitious_roots_events: bool = parameter(**doc('m',
-                                                              'a Boolean expliciting if adventicious root events '
-                                                              'should be forced'),
-                                                        by=BY, default=False)
-    adventitious_roots_events_file: str = parameter(**doc('adim',
-                                                          'Filepath pointing to input table to plan adventitious root'
-                                                          ' emergence event'),
-                                                    by=BY, default='adventitious_roots_inputs.csv')
-    radial_growth: bool = parameter(**doc('adim',
-                                          'equivalent to a Boolean expliciting whether radial growth should be '
-                                          'considered or not'),
-                                    by=BY, default=True)
-    nodules: bool = parameter(**doc('adim', 'a Boolean expliciting whether nodules could be formed or not'),
+    IPD: float = parameter(unit="m", description="Inter-primordia distance", references="IPD = 7.6 mm (??)", by=BY,
+                           default=0.00474)
+    new_root_tissue_density: float = parameter(unit="g.m-3", description="root_tissue_density",
+                                               unit_comment="of structural mass", by=BY, default=140000.0)
+    GDs: float = parameter(unit="s.m-2", description="Coefficient of growth duration",
+                           unit_comment="time equivalent at temperature of T_ref",
+                           references="Reference: GDs=930. day mm-2 (Pagès et Picon-Cochard, 2014)", by=BY,
+                           default=69120000000000.0)
+    main_roots_growth_extender: float = parameter(unit="s.s-1", description="Coefficient of growth duration "
+                                                                            "extension, by which the theoretical "
+                                                                            "growth duration is multiplied for "
+                                                                            "seminal and adventitious roots",
+                                                  references="Reference: GDs=400. day mm-2 ()", by=BY, default=100.0)
+    random: bool = parameter(unit="adim", description="Allow random processes in growth", by=BY, default=True)
+    initial_segment_length: float = parameter(unit="m", description="Initial segment length", by=BY, default=0.001)
+    initial_apex_length: float = parameter(unit="m", description="Initial apex length", by=BY, default=0.0001)
+    input_file_path: str = parameter(unit="m", description="Filepath for input files", by=BY, default="inputs")
+    forcing_seminal_roots_events: bool = parameter(unit="m", description="a Boolean expliciting if seminal root "
+                                                                         "events should be forced", by=BY,
+                                                   default=False)
+    seminal_roots_events_file: str = parameter(unit="m", description="Filepath pointing to input table to plan "
+                                                                     "seminal root emergence event", by=BY,
+                                               default="seminal_roots_inputs.csv")
+    forcing_adventitious_roots_events: bool = parameter(unit="m", description="a Boolean expliciting if adventicious "
+                                                                              "root events should be forced", by=BY,
+                                                        default=False)
+    adventitious_roots_events_file: str = parameter(unit="adim", description="Filepath pointing to input table to "
+                                                                             "plan adventitious root emergence event",
+                                                    by=BY, default="adventitious_roots_inputs.csv")
+    radial_growth: bool = parameter(unit="adim", description="equivalent to a Boolean expliciting whether radial "
+                                                             "growth should be considered or not", by=BY, default=True)
+    nodules: bool = parameter(unit="adim", description="a Boolean expliciting whether nodules could be formed or not",
                               by=BY, default=False)
-    root_order_limitation: bool = parameter(**doc('adim',
-                                                  'a Boolean expliciting whether lateral roots should be prevented '
-                                                  'above a certain root order'),
+    root_order_limitation: bool = parameter(unit="adim", description="a Boolean expliciting whether lateral roots "
+                                                                     "should be prevented above a certain root order",
                                             by=BY, default=False)
-    root_order_treshold: int = parameter(**doc('adim', 'the root order above which new lateral roots cannot be formed'),
+    root_order_treshold: int = parameter(unit="adim",
+                                         description="the root order above which new lateral roots cannot be formed",
                                          by=BY, default=2)
 
     # Coupled, the other components' variables are shared between the elements once per call, as RhizoDep's
@@ -647,15 +621,11 @@ class RootArchitecture(StructuralComponent):
 
     def _apex(self) -> np.ndarray:
         """The RootApex nodes (bool per node), read from the MPG's labels once per topology."""
-        ds = self.data_structure
-        key = (ds.topology_version, ds.n_nodes())
-        cache = self.__dict__.get("_apex_cache")
-        if cache is None or cache[0] != key:
-            g = ds._mtg
-            label, apex = g.property("label"), g.labels.SubOrgan.RootApex
-            cache = (key, np.array([label.get(int(v)) == apex for v in ds.entity_ids("node")], dtype=bool))
-            self.__dict__["_apex_cache"] = cache
-        return cache[1]
+        def build():
+            ds = self.data_structure
+            label, apex = ds.structure.property("label"), ds.structure.labels.SubOrgan.RootApex
+            return np.array([label.get(int(v)) == apex for v in ds.entity_ids("node")], dtype=bool)
+        return self.cached("apex", build)
 
     def _index_of(self, node_ids) -> np.ndarray:
         """The node index of each node id (-1 where the id is -1)."""
@@ -716,7 +686,7 @@ class RootArchitecture(StructuralComponent):
 
     @potential
     def _initial_length(self, length, radius, struct_mass, soil_temperature, process_at_T_ref, T_ref, A, B,
-                        C) -> outputs(10):
+                        C) -> dict:
         """The step's start: the fluxes zeroed, the initial and potential values copied, the temperature factor; a
         zero-length apex takes its parent's soil temperature."""
         ds = self.data_structure
@@ -731,11 +701,11 @@ class RootArchitecture(StructuralComponent):
                 ds.set(getattr(resource, role), zero)
         for name in self.ZEROED_AT_START:
             ds.set(name, zero)
-        return (np.array(length), "initial_radius", np.array(radius), "potential_radius", np.array(radius),
-                "theoretical_radius", np.array(radius), "potential_length", np.array(length),
-                "initial_struct_mass", np.array(struct_mass),
-                "soil_temperature", soil, "temperature_modification", factor, "struct_mass_produced", zero,
-                "actual_elongation", zero, "actual_elongation_rate", zero)
+        return {"initial_length": np.array(length), "initial_radius": np.array(radius),
+                "potential_radius": np.array(radius), "theoretical_radius": np.array(radius),
+                "potential_length": np.array(length), "initial_struct_mass": np.array(struct_mass),
+                "soil_temperature": soil, "temperature_modification": factor, "struct_mass_produced": zero,
+                "actual_elongation": zero, "actual_elongation_rate": zero}
 
     @potential
     def _potential_length(self, type, length, radius, initial_length, initial_radius, potential_length, volume,
@@ -747,7 +717,7 @@ class RootArchitecture(StructuralComponent):
                           thermal_time_since_cells_formation, actual_time_since_cells_formation,
                           thermal_time_since_death, actual_time_since_death,
                           lateral_root_emergence_possibility, lateral_primordium_index,
-                          emergence_delay) -> outputs(15):
+                          emergence_delay) -> dict:
         """
         The apices (RootGrowthModel.potential_apex_development): the state machine as masked branches, the supply
         zone of those elongating (calculating_supply_for_elongation, by path windows), their potential length; a
@@ -860,10 +830,10 @@ class RootArchitecture(StructuralComponent):
         clocks.advance(selected, time_step, thermal_time_step, "primordium_formation", "emergence", "cells_formation",
                        "growth_stopped")
 
-        return (new_potential_length, "type", new_type,
-                "thermal_potential_time_since_emergence", potential_time_since_emergence, *clocks.outputs(),
-                "emergence_delay_in_thermal_time", emergence_delay_in_thermal_time,
-                "lateral_root_emergence_possibility", possibility, "lateral_primordium_index", primordium_index)
+        return {"potential_length": new_potential_length, "type": new_type,
+                "thermal_potential_time_since_emergence": potential_time_since_emergence, **clocks.outputs(),
+                "emergence_delay_in_thermal_time": emergence_delay_in_thermal_time,
+                "lateral_root_emergence_possibility": possibility, "lateral_primordium_index": primordium_index}
 
     @potential
     def _theoretical_radius(self, type, length, radius, initial_radius, theoretical_radius, potential_radius,
@@ -872,7 +842,7 @@ class RootArchitecture(StructuralComponent):
                             thermal_time_since_emergence, actual_time_since_emergence,
                             thermal_time_since_cells_formation, actual_time_since_cells_formation,
                             thermal_time_since_growth_stopped, actual_time_since_growth_stopped,
-                            thermal_time_since_death, actual_time_since_death, SGC) -> outputs(13):
+                            thermal_time_since_death, actual_time_since_death, SGC) -> dict:
         """
         The segments (RootGrowthModel.potential_segment_development): the type of their axis apex (stopped), death
         when all their children are dead, the pipe model, children first (a fold up the tree), then the potential
@@ -957,8 +927,8 @@ class RootArchitecture(StructuralComponent):
         selected = normal & (new_type == TYPE_DEAD)
         clocks.thermal["death"][selected] += thermal_time_step[selected]
 
-        return (new_theoretical_radius, "type", new_type, "potential_radius", new_potential_radius,
-                "radius", new_radius, *clocks.outputs())
+        return {"theoretical_radius": new_theoretical_radius, "type": new_type,
+                "potential_radius": new_potential_radius, "radius": new_radius, **clocks.outputs()}
 
     # ── Actual growth (RootGrowthModel.actual_growth_and_corresponding_respiration) ───────────────────────────
 
@@ -971,7 +941,7 @@ class RootArchitecture(StructuralComponent):
     def _length(self, type, length, radius, initial_length, initial_radius, potential_length, potential_radius,
                 volume, struct_mass, struct_mass_produced, root_tissue_density, temperature_modification,
                 thermal_potential_time_since_emergence, thermal_time_since_emergence, actual_time_since_emergence,
-                actual_elongation, actual_elongation_rate, dist_to_ramif) -> outputs(11):
+                actual_elongation, actual_elongation_rate, dist_to_ramif) -> dict:
         """
         ArchiSimple's growth (RhizoDep's ArchiSimple_growth): each element grows by its potential increments times
         the plant's satisfaction coefficient SC (struct_mass_input over the potential growth's demand in structural
@@ -1017,11 +987,12 @@ class RootArchitecture(StructuralComponent):
             actual_since_emergence[emerges] = self._actual_time(time_since_emergence[emerges],
                                                                 temperature_factor[emerges])
 
-        return (new_length, "radius", new_radius, "volume", new_volume, "struct_mass", new_mass,
-                "struct_mass_produced", produced, "type", new_type, "thermal_time_since_emergence",
-                time_since_emergence, "actual_time_since_emergence", actual_since_emergence,
-                "actual_elongation", elongation, "actual_elongation_rate", elongation_rate,
-                "dist_to_ramif", new_dist_to_ramif, "step_elongating", elongating.astype(int))
+        return {"length": new_length, "radius": new_radius, "volume": new_volume, "struct_mass": new_mass,
+                "struct_mass_produced": produced, "type": new_type,
+                "thermal_time_since_emergence": time_since_emergence,
+                "actual_time_since_emergence": actual_since_emergence, "actual_elongation": elongation,
+                "actual_elongation_rate": elongation_rate, "dist_to_ramif": new_dist_to_ramif,
+                "step_elongating": elongating.astype(int)}
 
     def satisfaction_coefficient(self, type, initial_radius, initial_length, potential_radius, potential_length,
                                  root_tissue_density) -> np.ndarray:
@@ -1075,7 +1046,7 @@ class RootArchitecture(StructuralComponent):
     def _dist_to_ramif(self, dist_to_ramif, type, root_order, length, radius, initial_length, volume, struct_mass,
                        root_tissue_density, soil_temperature, temperature_modification, actual_elongation,
                        actual_elongation_rate, actual_time_since_cells_formation, thermal_time_since_cells_formation,
-                       angle_roll, key, step_elongating) -> outputs(7):
+                       angle_roll, key, step_elongating) -> dict:
         """
         RootGrowthModel.segmentation_and_primordium_formation on the apices that elongated (step_elongating):
 
@@ -1093,7 +1064,7 @@ class RootArchitecture(StructuralComponent):
         primordia's and nodules' are nil (ADDING_A_CHILD(nil_properties)).
         """
         ds = self.data_structure
-        labels, scales = ds._mtg.labels, ds._mtg.scales
+        labels, scales = ds.structure.labels, ds.structure.scales
         ids = np.asarray(ds.entity_ids("node"))
         time_step = float(self.time_step)
         indptr, _ = ds.children()
@@ -1107,9 +1078,10 @@ class RootArchitecture(StructuralComponent):
         apices = np.flatnonzero(self._apex() & (type == TYPE_EMERGED) & (step_elongating == 1))
         empty = NewNodes(parent=np.zeros(0, dtype=np.int64))
         if apices.size == 0:
-            return (new_dist_to_ramif, "length", new_length, "volume", new_volume, "struct_mass", new_mass,
-                    "actual_time_since_cells_formation", actual_cells, "thermal_time_since_cells_formation",
-                    thermal_cells, "angle_roll", new_angle_roll, "new_elements", empty)
+            return {"dist_to_ramif": new_dist_to_ramif, "length": new_length, "volume": new_volume,
+                    "struct_mass": new_mass, "actual_time_since_cells_formation": actual_cells,
+                    "thermal_time_since_cells_formation": thermal_cells, "angle_roll": new_angle_roll,
+                    "new_elements": empty}
 
         # Per apex
         L, S = length[apices], p["segment_length"][apices]
@@ -1295,14 +1267,14 @@ class RootArchitecture(StructuralComponent):
             relabel=(ids[cut], segment))
         for name in self.SHARED:
             ds.set(name, shared[name])
-        return (new_dist_to_ramif, "length", new_length, "volume", new_volume, "struct_mass", new_mass,
-                "actual_time_since_cells_formation", actual_cells, "thermal_time_since_cells_formation",
-                thermal_cells, "angle_roll", new_angle_roll, "new_elements", new)
+        return {"dist_to_ramif": new_dist_to_ramif, "length": new_length, "volume": new_volume, "struct_mass": new_mass,
+                "actual_time_since_cells_formation": actual_cells, "thermal_time_since_cells_formation": thermal_cells,
+                "angle_roll": new_angle_roll, "new_elements": new}
 
     # ── After growth (RootGrowthModel.post_growth_updating, standalone: the repartition is metafspm's) ─────────
 
     @postsegmentation
-    def _distance_from_tip(self, length, type, distance_from_tip) -> outputs(2):
+    def _distance_from_tip(self, length, type, distance_from_tip) -> dict:
         """Distance from the tip and the axis' apex (its node id), along the successors from the tips (a fold up the
         tree); the former distance kept."""
         apex = self._apex()
@@ -1322,8 +1294,8 @@ class RootArchitecture(StructuralComponent):
             return rows
 
         folded = self.data_structure.fold(update, columns, direction="up")
-        return (folded[:, 0], "axis_apex_id", folded[:, 1].astype(np.int64),
-                "former_distance_from_tip", np.array(distance_from_tip))
+        return {"distance_from_tip": folded[:, 0], "axis_apex_id": folded[:, 1].astype(np.int64),
+                "former_distance_from_tip": np.array(distance_from_tip)}
 
     @postsegmentation
     def _root_hair_length(self, length):
@@ -1332,11 +1304,11 @@ class RootArchitecture(StructuralComponent):
         return None
 
     @postsegmentation
-    def _living_struct_mass(self, struct_mass, type) -> outputs(1):
+    def _living_struct_mass(self, struct_mass, type) -> dict:
         """The living structural mass (none for a dead element), and the plant's total."""
         ds = self.data_structure
         living = np.array(struct_mass)
         living = np.where(np.isin(type, (TYPE_DEAD, TYPE_JUST_DEAD)), 0., living)
         owner = np.asarray(ds.owner("Plant"))
         totals = np.bincount(owner, weights=living, minlength=np.asarray(ds.entity_ids("Plant")).size)
-        return living, "total_living_struct_mass", totals
+        return {"living_struct_mass": living, "total_living_struct_mass": totals}

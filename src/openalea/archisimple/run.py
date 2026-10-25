@@ -14,13 +14,14 @@ function of the step and the node ids}).
 from dataclasses import dataclass, field
 
 import numpy as np
-import pandas as pd
 
+from openalea.metafspm.coupling.composite_wrapper import CompositeModel
+from openalea.metafspm.coupling.translator import Translator
+from openalea.metafspm.scene.population import Planting, planting
 from openalea.metafspm.scene.scene import Scene
 from openalea.archisimple.architecture import RootArchitecture
 
 LABEL_SEGMENT, LABEL_APEX = 1, 2
-STAGE_INDEX = {"potential": 1, "actual": 4, "segmentation": 5, "postsegmentation": 6, "post_growth": 6}
 
 
 @dataclass
@@ -44,16 +45,17 @@ _MODELS = {}
 
 
 def plant_model(component=RootArchitecture):
-    """A plant model of *component* (RootArchitecture or a subclass) alone; its other inputs given by run()."""
+    """A plant model (a CompositeModel) of *component* (RootArchitecture or a subclass) alone, nothing to couple; its
+    other inputs given by run()."""
     if component not in _MODELS:
         def __init__(self, data_structure, time_step):
             self.growth = component(data_structure=data_structure, time_step=time_step)
-            self.components = [self.growth]
+            self.declare_data_and_couple_components(translator_path=Translator(), components=(self.growth,))
 
         def run(self):
             self.growth()
 
-        _MODELS[component] = type(f"{component.__name__}Only", (), dict(
+        _MODELS[component] = type(f"{component.__name__}Only", (CompositeModel,), dict(
             initiators=(component,), __init__=__init__, run=run, __doc__=plant_model.__doc__))
     return _MODELS[component]
 
@@ -62,9 +64,8 @@ def scene(parameters=None, time_step=3600, component=RootArchitecture, spacing=0
     """A Scene of *component*: one plant, or one per element of *parameters* when it is a list (a population in one
     MPG, each plant its own scenario), *spacing* m apart along x."""
     plants = parameters if isinstance(parameters, list) else [parameters]
-    table = pd.DataFrame([dict(plant=f"p{i}", model=plant_model(component), x=spacing * i, y=0., z=0., rotation=0.,
-                               scenario={"parameters": dict(p or {})}) for i, p in enumerate(plants)])
-    table.attrs.update(xrange=max(1., spacing * len(plants)), yrange=1.)
+    table = planting([Planting(x=spacing * i) for i in range(len(plants))], plant_model(component),
+                     plant_parameters=[dict(p or {}) for p in plants], xrange=max(1., spacing * len(plants)), yrange=1.)
     return Scene(table, time_step=time_step)
 
 
@@ -138,11 +139,6 @@ def run(parameters=None, n_steps=24, time_step=3600, record_every=1, record_stat
 
 
 def run_stage(scene, stage):
-    """Run only the component's steps of one stage (its row in the Choregrapher's growth schedule)."""
-    growth = scene.populations[0].instance.growth
-    growth.pull_available_inputs()
-    _, groups = growth.__dict__["_choregraphy"]
-    for priority, functors in groups.items():
-        if eval(priority)[3] == STAGE_INDEX[stage]:
-            for functor in functors:
-                functor()
+    """Run only the component's steps of one stage (metafspm's run_stage: "potential", "actual", "segmentation",
+    "postsegmentation")."""
+    scene.populations[0].instance.growth.run_stage(stage)
